@@ -53,6 +53,30 @@ spec:
                       source:
                         description: source is the repository that users refer to, e.g. in image pull specifications.
                         type: string
+      served: true
+      storage: false
+      subresources:
+      status: {}
+    - name: v1alpha2
+      schema:
+        openAPIV3Schema:
+          description: "ImageContentSourcePolicy holds cluster-wide information about how to handle registry mirror rules. When multiple policies are defined, the outcome of the behavior is defined on each field. \n Compatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support."
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: spec holds user settable values for configuration
+              type: object
+              properties:
                 repositoryMirrors:
                   description: repositoryMirrors is the same as repositoryDigestMirrors, but provides allowMirrorByTags to enable to use mirrors without specifying image digests.
                   type: array
@@ -81,3 +105,16 @@ spec:
       storage: true
       subresources:
         status: {}
+    conversion:
+      # a Webhook strategy instruct API server to call an external webhook for any conversion between custom resources.
+      strategy: Webhook
+      webhook:
+        # conversionReviewVersions indicates what ConversionReview versions are understood/preferred by the webhook.
+        # The first version in the list understood by the API server is sent to the webhook.
+        # The webhook must respond with a ConversionReview object in the same version it received.
+        conversionReviewVersions: ["v1alpha2","v1alpha1"]
+        clientConfig:
+          service:
+            namespace: default
+            name: webhook-server
+            path: /convert

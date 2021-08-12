@@ -1,11 +1,10 @@
-package v1alpha1
+package v1alpha2
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // ImageContentSourcePolicy holds cluster-wide information about how to handle registry mirror rules.
 // When multiple policies are defined, the outcome of the behavior is defined on each field.
 //
@@ -17,15 +16,16 @@ type ImageContentSourcePolicy struct {
 
 	// spec holds user settable values for configuration
 	// +kubebuilder:validation:Required
+	// +kubebuilder:webhook:webhookVersions="v1alpha2,v1alpha1",namespcase=cluster,name=webhook-server,path=/convert
 	// +required
 	Spec ImageContentSourcePolicySpec `json:"spec"`
 }
 
 // ImageContentSourcePolicySpec is the specification of the ImageContentSourcePolicy CRD.
 type ImageContentSourcePolicySpec struct {
-	// repositoryDigestMirrors allows images referenced by image digests in pods to be
+	// repositoryMirrors allows images referenced by imageb tags digests in pods to be
 	// pulled from alternative mirrored repository locations. The image pull specification
-	// provided to the pod will be compared to the source locations described in RepositoryDigestMirrors
+	// provided to the pod will be compared to the source locations described in RepositoryMirrors
 	// and the image may be pulled down from any of the mirrors in the list instead of the
 	// specified repository allowing administrators to choose a potentially faster mirror.
 	// Only image pull specifications that have an image digest will have this behavior applied
@@ -40,10 +40,10 @@ type ImageContentSourcePolicySpec struct {
 	// mirrors will be used in the order `a, b, c, d, e`.  If the orders of mirror entries conflict
 	// (e.g. `a, b` vs. `b, a`) the configuration is not rejected but the resulting order is unspecified.
 	//
-	// Deprecated: RepositoryDigestMirrors will be deprecated. Use RepositoryMirrors satisfies RepositoryDigestMirrors
-	// fields and supports AllowMirrorByTags.
 	// +optional
-	RepositoryDigestMirrors []RepositoryDigestMirrors `json:"repositoryDigestMirrors"`
+	// +listType=map
+	// +listMapKey=source
+	RepositoryMirrors []RepositoryMirrors `json:"repositoryMirrors"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -59,19 +59,36 @@ type ImageContentSourcePolicyList struct {
 	Items []ImageContentSourcePolicy `json:"items"`
 }
 
-// RepositoryDigestMirrors holds cluster-wide information about how to handle mirros in the registries config.
-// Note: the mirrors only work when pulling the images that are referenced by their digests.
-// DEPRECATED: use RepositoryMirrors satisfies RepositoryDigestMirrors fields and supports AllowMirrorByTags.
-type RepositoryDigestMirrors struct {
+// RepositoryMirrors holds cluster-wide information about how to handle mirrors in the registries config.
+// Note: this is different from the RepositoryDigestMirrors that the mirrors only
+// work when pulling the images that are referenced by their digests.
+type RepositoryMirrors struct {
 	// source is the repository that users refer to, e.g. in image pull specifications.
+	// see https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table for format specifications
+	// i.e. using the following format
+	// host[:port]
+	// host[:port]/namespace[/namespace…]
+	// host[:port]/namespace[/namespace…]/repo
 	// +required
 	Source string `json:"source"`
-	// mirrors is one or more repositories that may also contain the same images.
+	// If true, the mirrors only work when pulling the images that are referenced by their digests.
+	// Pulling images by tag can potentially yield different images, depending on which endpoint
+	// we pull from. Forcing digest-pulls for mirrors avoids that issue.
+	// +optional
+	AllowMirrorByTags bool `json:"allowMirrorByTags,omitempty"`
+	// mirrors is zero or many repositories that may also contain the same images. A zero length mirrors or undefined mirrors field will not set a mirror.
+	// For mirror format specifications, see https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
+	// i.e. using the following format
+	// host[:port]
+	// host[:port]/namespace[/namespace…]
+	// host[:port]/namespace[/namespace…]/repo
+	// an empty string is not a valid mirror
 	// The order of mirrors in this list is treated as the user's desired priority, while source
 	// is by default considered lower priority than all mirrors. Other cluster configuration,
-	// including (but not limited to) other repositoryDigestMirrors objects,
+	// including (but not limited to) other repositoryMirrors objects,
 	// may impact the exact order mirrors are contacted in, or some mirrors may be contacted
 	// in parallel, so this should be considered a preference rather than a guarantee of ordering.
 	// +optional
-	Mirrors []string `json:"mirrors"`
+	// +listType=set
+	Mirrors []string `json:"mirrors,omitempty"`
 }
