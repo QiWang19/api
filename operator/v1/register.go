@@ -70,6 +70,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&IngressControllerList{},
 		&Storage{},
 		&StorageList{},
+		&ImageContentSourcePolicy{},
+		&ImageContentSourcePolicyList{},
 	)
 
 	return nil
